@@ -1,0 +1,59 @@
+# Compiler flags to generate dependency files.
+GENDEPFLAGS = -MMD -MP -MF .dep/$(@F).d
+
+CXXFLAGS	+= $(GENDEPFLAGS)
+
+INC_PATH	+= $(OPENIMU_INC) $(EIGENPATH)
+CXXFLAGS	+= $(addprefix -I, $(INC_PATH) )
+
+LDFLAGS		+= $(OPENIMU_LIB)
+
+OBJS = $(SOURCES:.cpp=.o)
+
+########################################################
+############# REGLAS ###################################
+########################################################
+
+# Define Messages
+# English
+MSG_ERRORS_NONE = Errors: none
+MSG_BEGIN = -------- begin --------
+MSG_END = --------  end  --------
+MSG_SIZE_BEFORE = Size before: 
+MSG_SIZE_AFTER = Size after:
+MSG_SYMBOL_TABLE = Creating Symbol Table:
+MSG_LINKING = Linking:
+MSG_COMPILING_C = Compiling C:
+MSG_COMPILING_CPP = Compiling C++:
+MSG_ASSEMBLING = Assembling:
+MSG_CLEANING = Cleaning project:
+MSG_CREATING_LIBRARY = Creating library:
+
+
+all:	$(TARGET)	Makefile
+	@echo
+	@echo $(MSG_END)
+
+$(TARGET): $(OBJS) Makefile
+	@echo
+	@echo $(MSG_LINKING)
+	$(CXX) $(CXXFLAGS) $(OBJS) -o $(TARGET) $(LDFLAGS)
+
+$(OBJS):	%.o:%.cpp			Makefile
+	@echo
+	@echo $(MSG_COMPILING_CPP) $<
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+clean:
+	@echo
+	@echo $(MSG_CLEANING)
+	rm -f $(OBJS)
+	rm -f $(TARGET)
+	rm -r -f .dep
+
+
+
+# Include the dependency files.
+-include $(shell mkdir .dep 2>/dev/null) $(wildcard .dep/*)
+
+.PHONY: clean

@@ -1,0 +1,5 @@
+### REPLACE TO FIT YOUR SYSTEM				##
+### THIS IS THE PATH TO THE EIGEN2 library 	##
+EIGENPATH=../eigen2
+
+

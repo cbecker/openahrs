@@ -1,0 +1,36 @@
+-------------------------
+openIMU - open source IMU
+
+Code is licensed under the GPL v2 license, see the file COPYING for information
+Copyright (c) Carlos Becker
+http://github.com/cbecker/openimu
+-------------------------
+
+1. Requirements
+---------------
+openIMU uses the Eigen2 library, under the GPL license too.
+You can download Eigen2 from http://eigen.tuxfamily.org
+
+You need to modify the EIGENPATH variable inside Makefile.paths before trying to
+compile anything.
+
+
+2. Code organization
+--------------------
+
+Directories:
+	
+	openIMU:
+		The folder openIMU contains main source code, built as a library to openIMU.a
+To make the library just type 'make' in this same directory.
+		!!BEWARE!!: read the above section since the Eigen2 path needs to be configured
+first.
+
+	tests:
+		Contains several tests. The Kalman ones simulate noisy input signals and write
+the results to an octave-compatible file. If octave is available on the host machine
+the data can be plotted by executing the script plot_data.m from octave.
+		To build the examples just go to the right example directory and type 'make'.
+You can also build the examples by issuing 'make test-xxxx' on the root directory,
+where 'xxxx' depends on the sample to be built (type 'make help' for a description).
+
