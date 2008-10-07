@@ -63,10 +63,10 @@ namespace openIMU { namespace kalman7
 
 	FT		calcError( FT plus, FT minus )
 	{
-		if ( (minus > M_PI/2) && (plus < -M_PI/2) ) {
-			return	2*M_PI + plus - minus;
-		} else if ( (minus < -M_PI/2) && (plus > M_PI/2) ) {
-			return	-2*M_PI + plus - minus;
+		if ( (minus > C_PI/2) && (plus < -C_PI/2) ) {
+			return	2*C_PI + plus - minus;
+		} else if ( (minus < -C_PI/2) && (plus > C_PI/2) ) {
+			return	-2*C_PI + plus - minus;
 		}
 		else
 			return plus - minus;
