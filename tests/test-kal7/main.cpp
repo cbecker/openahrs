@@ -92,23 +92,14 @@ void	makeTempData( bool add_noise )
 
 	for ( int i=0; i < N; i++ )
 	{
-		//p	= 0.03*sin(2*0.02*C_PI*i*dt);
-		p	 = 0.1*sin(2*0.02*C_PI*i*dt);
-		p = 0;
-		q = 0;
-		//q	= 0.5*cos(2*0.2*C_PI*i*dt+0.3);
-		//q = 0;
-		r = 0;
-		//r	= 0.1*cos(2*0.07*C_PI*i*dt + 0.14 );
+		/* this is angular speed for roll/pitch/yaw */
+		p	= 0.03*sin(2*0.02*C_PI*i*dt);
+		q	= 0.5*cos(2*0.2*C_PI*i*dt+0.3);
+		r	= 0.1*cos(2*0.07*C_PI*i*dt + 0.14 );
 
 		roll	+= p*dt;
 		pitch	+= q*dt;
 		yaw		+= r*dt;
-
-		roll	= 0.0438;
-		pitch	= 0.6944;
-		yaw		= 0;
-
 
 		roll	=	limitPI( roll );
 		pitch	=	limitPI( pitch );
@@ -124,10 +115,8 @@ void	makeTempData( bool add_noise )
 			input.accels[i]	+= util::randomVector3( 0, sqrt(meas_variance) );
 
 		/* this simulates what the software would do to sensor data */
-		input.angles[i]	<< atan2( -input.accels[i][1],
-									input.accels[i][2] ),
-							0,
-							yaw;
+		util::accelToPR( input.accels[i], input.angles[i] );
+		input.angles[i](2)	= yaw;
 
 		if ( add_noise )
 			input.angles[i](2)	+= util::randomNormal()*sqrt(meas_variance);
@@ -157,9 +146,7 @@ int main()
 	angle		=	input.angles[0];
 	cout << "Start angle:\n" << angle << endl << endl;
 
-	/** let the filter 'guess' the biases **/
-//	startBias	<< 0,0,0;
-//	startBias	= gyroBias;
+	/* initial bias */
 	startBias	=	input.gyros[0];
 
 	KalmanInit( angle, startBias, meas_variance,
