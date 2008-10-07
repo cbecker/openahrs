@@ -36,6 +36,6 @@ You can also build the examples by issuing 'make test-xxxx' on the root director
 where 'xxxx' depends on the sample to be built (type 'make help' for a description).
 
 	- IMUs:
-		IMU implementations. Currently only there is only an AVR32 port.
+		IMU implementations. Currently there is only an AVR32 port.
 		Make sure the GCC_PREFIX macro in the main Makefile is correctly set.
 
