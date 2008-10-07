@@ -10,23 +10,23 @@ CC=$(GCC_PREFIX)gcc
 
 CXXFLAGS=-O3 -Wall
 
-OPENIMU_PATH	= $(realpath ./openIMU)
-OPENIMU_LIB		= $(OPENIMU_PATH)/openIMU.a
-OPENIMU_INC		= $(OPENIMU_PATH)/include
+OPENAHRS_PATH	= $(realpath ./openAHRS)
+OPENAHRS_LIB		= $(OPENAHRS_PATH)/openAHRS.a
+OPENAHRS_INC		= $(OPENAHRS_PATH)/include
 
 ## change that if you want to try floating point results
 FLOAT_TYPE=double
 
 
 ## Prepare basic build variables
-all:	openIMU/openIMU.a
+all:	openAHRS/openAHRS.a
 	@echo	done.
 
-openIMU/openIMU.a:	Makefile.build
-	@echo ---=== Compiling openIMU ===---
-	make -C openIMU
+openAHRS/openAHRS.a:	Makefile.build
+	@echo ---=== Compiling openAHRS ===---
+	make -C openAHRS
 	
-test-kal7: openIMU/openIMU.a Makefile.build
+test-kal7: openAHRS/openAHRS.a Makefile.build
 	@echo ---=== Building test-kal7 ===---
 	make -C tests/test-kal7
 
@@ -42,21 +42,21 @@ Makefile.build:	Makefile
 	@echo AR=$(AR)	>> Makefile.build
 	@echo CC=$(CC)	>> Makefile.build
 	@echo CXXFLAGS +=$(CXXFLAGS) >> Makefile.build
-	@echo OPENIMU_LIB = $(OPENIMU_LIB) >> Makefile.build
-	@echo OPENIMU_INC = $(OPENIMU_INC) >> Makefile.build
+	@echo OPENAHRS_LIB = $(OPENAHRS_LIB) >> Makefile.build
+	@echo OPENAHRS_INC = $(OPENAHRS_INC) >> Makefile.build
 
 
 
 clean:	Makefile.build
 	make clean	-C tests/test-kal7
 	make clean	-C tests/test-eigen2
-	make clean 	-C openIMU
-	make clean	-C IMUs
+	make clean 	-C openAHRS
+	make clean	-C AHRSs
 	rm Makefile.build
 
 help:
 	@echo
-	@echo	___--=== openIMU Makefile ===--___
+	@echo	___--=== openAHRS Makefile ===--___
 	@echo	
 	@echo	CAUTION: Please setup the EIGENPATH variable in Makefile.paths first!!
 	@echo
@@ -71,4 +71,4 @@ help:
 	@echo
 
 
-.PHONY: tests test-kal7 help openIMU/openIMU.a
+.PHONY: tests test-kal7 help openAHRS/openAHRS.a

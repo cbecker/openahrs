@@ -1,14 +1,14 @@
 -------------------------
-openIMU - open source IMU
+openAHRS - open source AHRS
 
 Code is licensed under the GPL v2 license, see the file COPYING for information
 Copyright (c) Carlos Becker
-http://github.com/cbecker/openimu
+http://github.com/cbecker/openahrs
 -------------------------
 
 1. Requirements
 ---------------
-openIMU uses the Eigen2 library, under the GPL license too.
+openAHRS uses the Eigen2 library, under the GPL license too.
 You can download Eigen2 from http://eigen.tuxfamily.org
 
 You need to modify the EIGENPATH variable inside Makefile.paths before trying to
@@ -21,8 +21,8 @@ Use the GCC_PREFIX macro in Makefile to specify which compiler to use.
 
 Directories:
 	
-	- openIMU:
-		The folder openIMU contains main source code, built as a library to openIMU.a
+	- openAHRS:
+		The folder openAHRS contains main source code, built as a library to openAHRS.a
 To make the library just type 'make' in this same directory.
 		!!BEWARE!!: read the above section since the Eigen2 path needs to be configured
 first.
@@ -35,7 +35,7 @@ the data can be plotted by executing the script plot_data.m from octave.
 You can also build the examples by issuing 'make test-xxxx' on the root directory,
 where 'xxxx' depends on the sample to be built (type 'make help' for a description).
 
-	- IMUs:
-		IMU implementations. Currently there is only an AVR32 port.
+	- AHRSs:
+		AHRS implementations. Currently there is only an AVR32 port.
 		Make sure the GCC_PREFIX macro in the main Makefile is correctly set.
 

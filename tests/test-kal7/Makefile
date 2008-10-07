@@ -4,6 +4,6 @@ SOURCES	+= main.cpp
 TARGET 	= test-kal7
 #RELPATH	= ../../
 
-LIBS=$(OPENIMU_LIB)
+LIBS=$(OPENAHRS_LIB)
 
 include ../../Makefile.rules

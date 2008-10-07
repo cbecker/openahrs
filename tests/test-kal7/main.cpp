@@ -35,17 +35,17 @@
 
 USING_PART_OF_NAMESPACE_EIGEN
 
-#include <openIMU/util/util.h>
-#include <openIMU/kalman/kalman7.h>
-#include <openIMU/util/octave.h>
-#include <openIMU/util/net.h>
+#include <openAHRS/util/util.h>
+#include <openAHRS/kalman/kalman7.h>
+#include <openAHRS/util/octave.h>
+#include <openAHRS/util/net.h>
 
 #include "timer_this.h"
 
 
 using namespace std;
-using namespace openIMU;
-using namespace openIMU::kalman7;
+using namespace openAHRS;
+using namespace openAHRS::kalman7;
 
 FT	dt	= 1.0/50;
 
