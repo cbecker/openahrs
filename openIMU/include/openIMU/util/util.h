@@ -79,6 +79,24 @@ namespace openIMU { namespace util
 	Matrix<FT,4,1>		eulerToQuat( const Matrix<FT,3,1> &e );
 
 	/**
+	 * Accelerometer data to pitch and roll.
+	 * Yaw is not calculated.
+	 *
+	 * @param accels	Accelerometer data, input
+	 * @param angles	Output angles, only roll and pitch are calculated
+	 */
+	void	accelToPR( const Matrix<FT,3,1> &accels, Matrix<FT,3,1> &angles );
+
+	/**
+	 * Calculate current heading based on magnetic measurements
+	 * and pitch and roll.
+	 *
+	 * @param magn		Magnetometer data in body coordinates
+	 * @param attitude	Attitude [roll;pitch;yaw], yaw is not used
+	 */
+	float	calcHeading( const Matrix<FT,3,1> &magn, const Matrix<FT,3,1> &attitude );
+
+	/**
 	 * Normalize quaternion
 	 *
 	 * NOT USED

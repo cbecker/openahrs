@@ -6,12 +6,13 @@ CXXFLAGS	+= $(GENDEPFLAGS)
 INC_PATH	+= $(OPENIMU_INC) $(EIGENPATH)
 CXXFLAGS	+= $(addprefix -I, $(INC_PATH) )
 
-LDFLAGS		+= $(OPENIMU_LIB)
+
+LDFLAGS		+= $(LIBS)
 
 OBJS = $(SOURCES:.cpp=.o)
 
 ########################################################
-############# REGLAS ###################################
+############# RULES ###################################
 ########################################################
 
 # Define Messages
@@ -34,7 +35,7 @@ all:	$(TARGET)	Makefile
 	@echo
 	@echo $(MSG_END)
 
-$(TARGET): $(OBJS) Makefile
+$(TARGET): $(LIBS) $(OBJS) Makefile
 	@echo
 	@echo $(MSG_LINKING)
 	$(CXX) $(CXXFLAGS) $(OBJS) -o $(TARGET) $(LDFLAGS)

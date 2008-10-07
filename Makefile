@@ -1,3 +1,4 @@
+## change prefix to build for other platforms
 #GCC_PREFIX	= avr32-linux-
 GCC_PREFIX	=
 
@@ -50,6 +51,7 @@ clean:	Makefile.build
 	make clean	-C tests/test-kal7
 	make clean	-C tests/test-eigen2
 	make clean 	-C openIMU
+	make clean	-C IMUs
 	rm Makefile.build
 
 help:
@@ -69,4 +71,4 @@ help:
 	@echo
 
 
-.PHONY: tests test-kal7 help
+.PHONY: tests test-kal7 help openIMU/openIMU.a

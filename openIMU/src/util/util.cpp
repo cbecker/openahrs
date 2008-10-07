@@ -58,22 +58,19 @@ namespace openIMU { namespace util
 		 * DROLL/DQ 
 		 * ***/
 		{
-			FT	K	= e0*e0 + \
-										ez*ez - \
-										ex*ex - \
-										ey*ey;
-			FT	K2	= K*K;
-			/* 2*ex0*ex + 2*ey*ez */
-			FT	P	= 2 * ( e0*ex + ey*ez );
-			FT	P2	= P*P;
-	
-			FT	K2_P2	= K2 + P2;
+			FT	K1	= 1 - 2*ex*ex - 2*ey*ey;
+			FT	K1K1	= K1*K1;
+
+			FT	K	= 2*(e0*ex + ey*ez);
+			FT	K2	= 1 + K*K/(K1K1);
+			
+			FT	K1K2	= K1*K2;
 
 			/** droll/dq **/
-			ret(0,0)	= 2*( K*ex - P*e0 ) / K2_P2;
-			ret(0,1)	= 2*( K*e0 + P*ex ) / K2_P2;
-			ret(0,2)	= 2*( K*ez + P*ey ) / K2_P2;
-			ret(0,3)	= 2*( K*ey - P*ez ) / K2_P2;
+			ret(0,0)	= 2*ex/K1K2;
+			ret(0,1)	= (2*e0/K1 + 4*ex*K/K1K1)/K2;
+			ret(0,2)	= (2*ez/K1 + 4*ey*K/K1K1)/K2;
+			ret(0,3)	= 2*ey/K1K2;
 		}
 
 		
@@ -102,22 +99,19 @@ namespace openIMU { namespace util
 		 *
 		 */
 		{
-			FT	K	= e0*e0 + \
-										ex*ex - \
-										ey*ey - \
-										ez*ez;
-			FT	K2	= K*K;
-			/* 2*ex0*ex + 2*ey*ez */
-			FT	P	= 2 * ( e0*ez + ex*ey );
-			FT	P2	= P*P;
-	
-			FT	K2_P2	= K2 + P2;
+			FT	K1	= 1 - 2*ey*ey - 2*ez*ez;
+			FT	K1K1	= K1*K1;
 
-			/** droll/dq **/
-			ret(2,0)	= 2*( K*ez - P*e0 ) / K2_P2;
-			ret(2,1)	= 2*( K*ey - P*ex ) / K2_P2;
-			ret(2,2)	= 2*( K*ex + P*ey ) / K2_P2;
-			ret(2,3)	= 2*( K*e0 + P*ez ) / K2_P2;
+			FT	K	= 2*(e0*ez + ex*ey);
+			FT	K2	= 1 + K*K/(K1K1);
+			
+			FT	K1K2	= K1*K2;
+
+			/** dyaw/dq **/
+			ret(2,0)	= 2*ez/K1K2;
+			ret(2,1)	= 2*ey/K1K2;
+			ret(2,2)	= (2*ex/K1 + 4*ey*K/K1K1)/K2;
+			ret(2,3)	= (2*e0/K1 + 4*ez*K/K1K1)/K2;
 		}
 		
 		#undef	e0
@@ -180,6 +174,34 @@ namespace openIMU { namespace util
 
 		return ret;
 	}
+
+	void	accelToPR( const Matrix<FT,3,1> &accels, Matrix<FT,3,1> &angles )
+	{
+		angles(0)	= atan2( -accels[1], accels[2] );
+		angles(1)	= asin( -accels[0]/accels.norm() );
+	}
+
+
+	float	calcHeading( const Matrix<FT,3,1> &magn, const Matrix<FT,3,1> &attitude )
+	{
+		//precalculate
+		float	Cp	= cos( attitude[1] );
+		float	Sp	= sin( attitude[1] );
+		float	Cr	= cos( attitude[0] );
+		float	Sr	= sin( attitude[0] );
+
+		/**
+		 * Convert to earth fixed frame
+		 */
+		float	Hx	= magn[0]*Cp + magn[1]*Sp*Sr - magn[2]*Sp*Cr;
+		float	Hy	= magn[1]*Cr  + magn[2]*Sr;
+
+	//	cout << "Hx: " << Hx << endl;
+	//	cout << "Hy: " << Hy << endl;
+
+		return	atan2(-Hy,Hx);
+	}
+
 
 	void	quatNormalize( Matrix<FT,4,1> &q )
 	{

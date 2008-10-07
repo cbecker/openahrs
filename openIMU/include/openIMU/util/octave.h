@@ -55,6 +55,7 @@ namespace openIMU { namespace octave
 		file	<< "# rows: " << m[0].rows() << "\n";
 		file	<< "# columns: " << n << "\n";
 
+		file.precision(20);
 
 		for (int i=0; i < m[0].rows(); i++ )
 		{

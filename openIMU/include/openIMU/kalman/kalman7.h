@@ -36,9 +36,13 @@ namespace openIMU { namespace kalman7
 	 * @param meas_variance	Measurement variance.
 	 *							TODO: should be more descriptive, and there
 	 *							should be two variances, one for gyros and one for accels.
+	 *
+	 * @param process_bias_var	variance for the process bias estimate
+	 * @param process_quat_var	variance for the quaternion estimate
 	 */
 	void	KalmanInit( Matrix<FT,3,1> &startAngle, 
-					Matrix<FT,3,1> &startBias, FT meas_variance );
+						Matrix<FT,3,1> &startBias, FT meas_var,
+						FT process_bias_var, FT process_quat_var );
 
 	/**
 	 * Kalman - Update state 
@@ -53,12 +57,14 @@ namespace openIMU { namespace kalman7
 	/** 
 	 * Kalman - Predict state 
 	 *
-	 * @param iter	Current iteration number, only for testing purposes.
-	 * @param gyros	Current measured gyro rate, including biases
-	 * @param dt	Time between consecutive kalman updates
+	 * @param iter			Current iteration number, only for testing purposes.
+	 * @param gyros			Current measured gyro rate, including biases
+	 * @param track_bias	if bias should be tracked
+	 * @param dt			Time between consecutive kalman updates
 	 *
 	 */
-	void	KalmanPredict( int iter, const Matrix<FT,3,1> &gyros, FT dt );
+	void	KalmanPredict( int iter, const Matrix<FT,3,1> &gyros, 
+							bool track_bias, FT dt );
 
 
 	/**

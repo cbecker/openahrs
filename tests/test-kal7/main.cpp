@@ -1,3 +1,32 @@
+/*
+ *	Test for 7-state kalman filter
+ *	Octave output
+ *
+ *  Works on the ATNGW100 reference board, see schematics on the hardware folder
+ *
+ *
+ *  Copyright (c) by Carlos Becker	http://github.com/cbecker 
+ *
+ *
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation; either version 2 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program; if not, write to the Free Software
+ *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+ *
+ */
+
+
+
+
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -9,6 +38,7 @@ USING_PART_OF_NAMESPACE_EIGEN
 #include <openIMU/util/util.h>
 #include <openIMU/kalman/kalman7.h>
 #include <openIMU/util/octave.h>
+#include <openIMU/util/net.h>
 
 #include "timer_this.h"
 
@@ -19,7 +49,8 @@ using namespace openIMU::kalman7;
 
 FT	dt	= 1.0/50;
 
-#define	N	20000
+/* number of points for test */
+#define	N	2000
 
 static const FT meas_variance = 0.01;
 static struct
@@ -63,14 +94,21 @@ void	makeTempData( bool add_noise )
 	{
 		//p	= 0.03*sin(2*0.02*C_PI*i*dt);
 		p	 = 0.1*sin(2*0.02*C_PI*i*dt);
-		//p = 0.001;
-		q	= 0.05*cos(2*0.2*C_PI*i*dt+0.3);
+		p = 0;
+		q = 0;
+		//q	= 0.5*cos(2*0.2*C_PI*i*dt+0.3);
 		//q = 0;
-		r	= 0.1*cos(2*0.07*C_PI*i*dt + 0.14 );
+		r = 0;
+		//r	= 0.1*cos(2*0.07*C_PI*i*dt + 0.14 );
 
 		roll	+= p*dt;
 		pitch	+= q*dt;
 		yaw		+= r*dt;
+
+		roll	= 0.0438;
+		pitch	= 0.6944;
+		yaw		= 0;
+
 
 		roll	=	limitPI( roll );
 		pitch	=	limitPI( pitch );
@@ -88,7 +126,7 @@ void	makeTempData( bool add_noise )
 		/* this simulates what the software would do to sensor data */
 		input.angles[i]	<< atan2( -input.accels[i][1],
 									input.accels[i][2] ),
-							0,	
+							0,
 							yaw;
 
 		if ( add_noise )
@@ -97,7 +135,7 @@ void	makeTempData( bool add_noise )
 		FT	temp = -input.accels[i][0]/input.accels[i].norm();
 		if ( temp > 1 )		temp = 1;
 		if ( temp < -1 )	temp = -1;
-		input.angles[i][1]	= asin(temp);
+		input.angles[i](1)	= asin(temp);
 
 		input.gyros[i]	<< p,q,r;
 
@@ -114,21 +152,18 @@ int main()
 	Matrix<FT,3,1>	startBias;
 	Matrix<FT,3,1>	gyros;
 
-	makeTempData(false);
+	makeTempData(true);
 
-/*	ofstream	file("octest");
-
-	octave::writeVectors( file, "varname", arr,2);
-	octave::writeVectors( file, "var2", arr, 3 );
-	file.close();*/
-
-	angle		=	input.realAngles[0];
+	angle		=	input.angles[0];
+	cout << "Start angle:\n" << angle << endl << endl;
 
 	/** let the filter 'guess' the biases **/
-	startBias	<< 0,0,0;
-	//startBias	=	gyroBias;
+//	startBias	<< 0,0,0;
+//	startBias	= gyroBias;
+	startBias	=	input.gyros[0];
 
-	KalmanInit( angle, startBias, meas_variance );
+	KalmanInit( angle, startBias, meas_variance,
+					1e-2, 1e-5 );
 	cout << angle << endl;
 
 	cout << "Q\n" << util::eulerToQuat( angle ) << endl;
@@ -141,21 +176,18 @@ int main()
 		KalmanUpdate( i, input.angles[i], dt );
 		
 		output.state[i]	= X;
-		/*output.angles[i]	= util::quatToEuler( output.state[i].start<4>() );
+		
+		KalmanPredict( i, input.gyros[i], true, dt );
 
-		const FT	tolerance	= 0.2;
-		if ( fabs( output.angles[i](1) - input.angles[i](1) ) > tolerance )
-			cout << "Err en " << i << endl;*/
-
-		KalmanPredict( i, input.gyros[i], dt );
-	//	cout << "Euler\n" << util::quatToEuler(X.start<4>()) << endl;
-	//	cout << "Bias\n"  << X.block<3,1>(4,0) << endl;
 	}
 //);
+
 	for (i=0 ; i < N ; i++ )
 	{
 		output.angles[i]	= util::quatToEuler( output.state[i].start<4>() );
 	}
+
+	cout << "End angle: \n" << output.angles[N-1] << endl;
 
 	ofstream	file("octave/kaltest");
 
