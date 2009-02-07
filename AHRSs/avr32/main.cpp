@@ -46,7 +46,7 @@
 	#include <openAHRS/util/octave.h>
 
 	//number of points for octave debugging
-	#define	N	1000
+	#define	N	2000
 #endif
 
 
@@ -59,7 +59,6 @@
 using namespace std;
 using namespace input;
 using namespace openAHRS;
-using namespace	openAHRS::kalman7;
 
 /**
  * A/D channels
@@ -82,6 +81,7 @@ using namespace	openAHRS::kalman7;
 		Matrix<FT,3,1>	accels[N];
 		Matrix<FT,3,1>	gyros[N];
 		Matrix<FT,3,1>	angles[N];
+		Matrix<FT,3,1>	magn[N];
 	} in;
 
 	/**
@@ -275,11 +275,25 @@ static void	getData( AD12 &ad, LIS3LV02 &accel, Matrix<FT,3,1> &accels, Matrix<F
 
 }
 
+#if 1
+void	endlessAccelRead( LIS3LV02 &accel )
+{
+	float data[3];
+	for (;;)
+	{
+		if ( !accel.getAccel( data ) )
+			exit(-1);
 
+		printf("X:%f Y:%f Z:%f\n" , data[0], data[1], data[2] );
+		usleep(5000);
+	}
+}
+#endif
 
 int main( int argc, char *argv[] )
 {
 	Matrix<FT,3,1>	startBias;
+	Matrix<FT,7,1>	X;	//this will save a copy of our state vector
 
 	if ( argc != 2 ) {
 		cout << "Wrong arguments" << endl << endl;
@@ -291,6 +305,10 @@ int main( int argc, char *argv[] )
 	/* To output data through the network interface
 	 * TODO: there is no host error checking */
 	util::UDPConnection	conn( argv[1] ,4444);
+
+
+	/** Create kalman object **/
+	openAHRS::kalman7	K7;
 
 	/**
 	 * Try to initialize spi devices */
@@ -305,6 +323,8 @@ int main( int argc, char *argv[] )
 		cout << "Error Accel init" << endl;
 		return -1;
 	}
+
+//	endlessAccelRead( dev_accel );
 
 	if ( !CFlip::init() ) {
 		cout	<< "Error init cflip" << endl;
@@ -368,7 +388,7 @@ int main( int argc, char *argv[] )
 
 	/* lets provide an initial estimate */
 	startBias	= meas_gyros;
-	KalmanInit( meas_angles, startBias, 0.01,
+	K7.KalmanInit( meas_angles, startBias, 0.01,
 					1e-4, 1e-7);
 
 
@@ -397,7 +417,8 @@ int main( int argc, char *argv[] )
 		#endif
 
 
-		KalmanUpdate( i, meas_angles, dt );
+		K7.KalmanUpdate( i, meas_angles, dt );
+		X = K7.X;
 
 		angles	= util::quatToEuler( X.start<4>() );
 
@@ -405,6 +426,7 @@ int main( int argc, char *argv[] )
 			in.accels[i]	= meas_accels;
 			in.angles[i]	= meas_angles;
 			in.gyros[i]		= meas_gyros;
+			in.magn[i]		= meas_magn;
 
 			out.state[i]	= X;
 			out.angles[i]	= angles;
@@ -421,7 +443,7 @@ int main( int argc, char *argv[] )
 
 		conn.Send( netStr, strlen(netStr) );
 
-		KalmanPredict( i, meas_gyros, true, dt );
+		K7.KalmanPredict( i, meas_gyros, true, dt );
 
 		//show debug info once a while
 		if ( i % 10 == 0 ) {
@@ -442,6 +464,7 @@ int main( int argc, char *argv[] )
 		octave::writeVectors( file, "in_accels", in.accels, N );
 		octave::writeVectors( file, "in_gyros", in.gyros, N );
 		octave::writeVectors( file, "in_angles", in.angles, N );
+		octave::writeVectors( file, "in_magn", in.magn, N );
 
 		octave::writeVectors( file, "out_state", out.state, N );
 		octave::writeVectors( file, "out_angles", out.angles, N  );

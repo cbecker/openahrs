@@ -45,7 +45,6 @@ USING_PART_OF_NAMESPACE_EIGEN
 
 using namespace std;
 using namespace openAHRS;
-using namespace openAHRS::kalman7;
 
 FT	dt	= 1.0/50;
 
@@ -148,8 +147,11 @@ int main()
 
 	/* initial bias */
 	startBias	=	input.gyros[0];
+	
+	/* Construct a kalman7 object */
+	openAHRS::kalman7	K7;
 
-	KalmanInit( angle, startBias, meas_variance,
+	K7.KalmanInit( angle, startBias, meas_variance,
 					1e-2, 1e-5 );
 	cout << angle << endl;
 
@@ -160,11 +162,11 @@ int main()
 
 	for (i=0; i < N; i++ )
 	{
-		KalmanUpdate( i, input.angles[i], dt );
+		K7.KalmanUpdate( i, input.angles[i], dt );
 		
-		output.state[i]	= X;
+		output.state[i]	= K7.X;
 		
-		KalmanPredict( i, input.gyros[i], true, dt );
+		K7.KalmanPredict( i, input.gyros[i], true, dt );
 
 	}
 //);

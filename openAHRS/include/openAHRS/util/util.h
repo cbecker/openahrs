@@ -34,6 +34,22 @@ USING_PART_OF_NAMESPACE_EIGEN
 
 namespace openAHRS { namespace util
 {
+
+	/** Calculates angle error **/
+	static FT		calcAngleError( FT plus, FT minus )
+	{
+		if ( (minus > C_PI/2) && (plus < -C_PI/2) ) {
+			return	2*C_PI + plus - minus;
+		} else if ( (minus < -C_PI/2) && (plus > C_PI/2) ) {
+			return	-2*C_PI + plus - minus;
+		}
+		else
+			return plus - minus;
+	}
+
+
+
+
 	/**
 	 * Calculate Quaternion Omega Matrix
 	 * p,q,r are rotation speeds

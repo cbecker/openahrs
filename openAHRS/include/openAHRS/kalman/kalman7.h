@@ -26,8 +26,14 @@
 
 #include <openAHRS/util/util.h>
 
-namespace openAHRS { namespace kalman7
+namespace openAHRS { 
+
+class kalman7
 {
+
+public:
+	kalman7();	/* simple, nearly do-nothing constructor */
+
 	/**
 	 * Init kalman variables and state.
 	 *
@@ -70,9 +76,59 @@ namespace openAHRS { namespace kalman7
 	/**
 	 * Public access to state vector
 	 */
-	extern Matrix<FT,7,1>	X;	/* state vector */
+public:
+	Matrix<FT,7,1>	X;	/* state vector */
+			/**
+			 * X(0..3)	=> quaternion
+			 * X(4..6)	=> gyro bias estimate
+			 */
 
-}};
+private:
+	Matrix<FT,7,7>	A;	/* transition matrix */
+	Matrix<FT,7,7>	P;	
+
+	Matrix<FT,3,7>	H;	/* observation matrix */
+	Matrix<FT,7,3>	K;	/* kalman gain */
+	Matrix<FT,7,7>	W;	/* process noise matrix */
+	Matrix<FT,3,3>	R;	/* measurement noise matrix */
+
+			
+	Matrix<FT,4,1>	q;	/* temp quaternion */
+
+	Matrix<FT,3,1>	angleErr;	/* for angle error calculation */
+	
+	Matrix<FT,7,7>	I;	/* identity */
+
+	/** measurement variance */
+	FT	meas_variance;
+
+
+private:
+	/** 
+	* Calculate transition jacobian
+	*
+	* @param A			Destination matrix
+	* @param gyros		Gyro data, including bias
+	* @param q			Current state in quaternion format
+	* @param track_bias	if bias should be tracked or held constant
+	* @param dt			Delta between updates
+	*/
+	void	calcA( Matrix<FT,7,7> &A, 
+					const Matrix<FT,3,1> &gyros,
+					const Matrix<FT,4,1> &q, bool track_bias, FT dt );
+
+	/**
+	* Predict next state based on current state and gyro measurements
+	*
+	* @param X			Source/destination state vector
+	* @param gyros		gyro data
+	* @param dt			delta between updates
+	*/
+	void	predictState( Matrix<FT,7,1> &X, 
+					const Matrix<FT,3,1> &gyros, FT dt );
+};
+
+};
 
 #endif	/* __kalman7_h_ */
 
