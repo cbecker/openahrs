@@ -1,9 +1,6 @@
 /*
- *	Test for 7-state kalman filter
+ *	Test for 7-state kalman filter using UKF
  *	Octave output
- *
- *  Works on the ATNGW100 reference board, see schematics on the hardware folder
- *
  *
  *  Copyright (c) by Carlos Becker	http://github.com/cbecker 
  *
@@ -36,11 +33,14 @@
 USING_PART_OF_NAMESPACE_EIGEN
 
 #include <openAHRS/util/util.h>
-#include <openAHRS/kalman/kalman7.h>
+
+#include <openAHRS/kalman/UKFst7.h>
+
 #include <openAHRS/util/octave.h>
 #include <openAHRS/util/net.h>
 
 #include "timer_this.h"
+
 
 
 using namespace std;
@@ -49,9 +49,9 @@ using namespace openAHRS;
 FT	dt	= 1.0/50;
 
 /* number of points for test */
-#define	N	2000
+#define	N	10000
 
-static const FT meas_variance = 0.01;
+static const FT meas_variance = 1e-1;
 static struct
 {
 	Matrix<FT,3,1>	accels[N];
@@ -81,7 +81,6 @@ Matrix<FT,3,1>	gyroBias;
 
 void	makeTempData( bool add_noise )
 {
-	gyroBias	<< 3,5,7;
 
 
 	FT	roll,pitch,yaw;
@@ -134,46 +133,82 @@ void	makeTempData( bool add_noise )
 	}
 }
 
+
+Matrix<FT,3,1>	angle;
+Matrix<FT,3,1>	startBias;
+Matrix<FT,3,1>	gyros;
+
+/* Construct a kalman7 object */
+openAHRS::UKFst7	K7;
+
 int main()
 {
-	Matrix<FT,3,1>	angle;
-	Matrix<FT,3,1>	startBias;
-	Matrix<FT,3,1>	gyros;
+	gyroBias	<< 3,5,7;
+	cout.precision(15);
+	cout << 1.12345678901234567<< endl;
 
 	makeTempData(true);
 
-	angle		=	input.angles[0];
+	angle	= input.angles[0];
+	//angle << 0.5,0,0;
 	cout << "Start angle:\n" << angle << endl << endl;
 
 	/* initial bias */
 	startBias	=	input.gyros[0];
 	
-	/* Construct a kalman7 object */
-	openAHRS::kalman7	K7;
-
 	K7.KalmanInit( angle, startBias, meas_variance,
-					1e-2, 1e-5 );
+					1e-9, 1e-6 );
+//					1e-9, 1e-6 );
 	cout << angle << endl;
 
 	cout << "Q\n" << util::eulerToQuat( angle ) << endl;
+	
 	int i;
 
-//TIME_THIS("aa",
+	Matrix<FT,7,1>	st;
+	
+	K7.getStateVector(st);
+	cout << "StartX:\n" << st << endl;
+
+
+TIME_THIS("elapsed time",
+
 
 	for (i=0; i < N; i++ )
 	{
+		//K7.printMatrices();
+
 		K7.KalmanUpdate( i, input.angles[i], dt );
+		//K7.KalmanUpdate( i, angle, dt );
+		K7.getStateVector(st);
 		
-		K7.getStateVector( output.state[i] );
+		//cout << i << "------------ Upd  X:\n" << st << endl;
+		
+		if ( isnan( st(0) ) ) {
+			cout << "------------> NaN detected: " << i << endl;
+			cout << "X\n" << st << std::endl;
+			exit(-1);
+			break;
+		}
+		output.state[i] = st;
+
+		//cout << "Angle: \n" << util::quatToEulerNorm( st.start<4>() ) << endl;
+		
 		
 		K7.KalmanPredict( i, input.gyros[i], dt );
+		//K7.KalmanPredict( i, startBias, true, dt );
 
+		/*K7.getStateVector(st);
+		for (int j=0; j < 7; j++)
+			printf("Pred %d X(%d) = %.15lf\n", i, j, st(j) );*/
+
+		//output.state[i]	= K7.X;
 	}
-//);
+);
 
 	for (i=0 ; i < N ; i++ )
 	{
-		output.angles[i]	= util::quatToEuler( output.state[i].start<4>() );
+		output.angles[i]	= util::quatToEulerNorm( output.state[i].start<4>() );
 	}
 
 	cout << "End angle: \n" << output.angles[N-1] << endl;

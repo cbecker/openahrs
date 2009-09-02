@@ -39,18 +39,19 @@ using namespace std;
 
 namespace input 
 {
-	AD12::AD12( const char *spidev ) 
+	AD12::AD12( const char *spidev, float VRef ) 
 	{
 		spidevname	= spidev;
+		vRef = VRef;
 	}
 
-	bool AD12::init(void) 
+	bool AD12::init( uint32_t spiSpeed ) 
 	{
 		int ret;
 
 		uint8_t mode = 0;
 		uint8_t bits = 8;
-		uint32_t speed = 1000000;
+		uint32_t speed = spiSpeed;
 
 		fd = open(spidevname, O_RDWR);
 		if (fd < 0) {
@@ -114,10 +115,15 @@ namespace input
 		uint16_t	ret = 0;
 		int i;
 
+		if ( channel > 7 )	return false;
+
 
 		memset( xfer,0,sizeof(xfer));
 
-		txb[0] = /*start*/ (1<<2) | /*single*/(1<<1) | (channel>>2);
+		txb[0] = /*start*/ (1<<2) | /*single*/(1<<1);
+		if ( channel & (1<<2) )
+			txb[0] |= 1;
+
 		txb[1] = (channel & 0x3) << 6;
 		txb[2] = 0;
 
@@ -177,7 +183,7 @@ namespace input
 		}
 
 		if ( result != NULL ) {
-			*result = 5.0*ret/4096;
+			*result = vRef*ret/4096;
 		}
 
 		return true;

@@ -8,7 +8,8 @@ CXX=$(GCC_PREFIX)g++
 AR=$(GCC_PREFIX)ar
 CC=$(GCC_PREFIX)gcc
 
-CXXFLAGS=-O3 -Wall
+OPTIMIZATION=-O2
+CXXFLAGS+=$(OPTIMIZATION) -Wall
 
 OPENAHRS_PATH	= $(realpath ./openAHRS)
 OPENAHRS_LIB		= $(OPENAHRS_PATH)/openAHRS.a
@@ -49,7 +50,9 @@ Makefile.build:	Makefile
 
 clean:	Makefile.build
 	make clean	-C tests/test-kal7
-	make clean	-C tests/test-eigen2
+	make clean	-C tests/test-ukfkal7
+	make clean	-C tests/test-calib-ellipsoid
+	make clean	-C tests/test-calib-ukfellipsoid
 	make clean 	-C openAHRS
 	make clean	-C AHRSs
 	rm Makefile.build

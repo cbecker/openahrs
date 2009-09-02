@@ -22,100 +22,44 @@
  *
  */
 
-
-
-
-
-#include "input/lis3lv02.h"
-#include "input/ad12.h"
-#include "input/cflip.h"
-
+#include <stdio.h>
 #include "timer_this.h"
-
-/**
- * If DEBUG_OCTAVE is not zero then N measurements are done and processed,
- * then saved to an octave file for analisys.
- *
- * Make sure the folder 'octave' exists on the same directory the application is run on
- *
- * Otherwise the program will never end and will keep sending data through UDP
- */
-#define	DEBUG_OCTAVE	1
-
-#if		DEBUG_OCTAVE
-	#include <openAHRS/util/octave.h>
-
-	//number of points for octave debugging
-	#define	N	2000
-#endif
-
-
-#include <openAHRS/util/util.h>
-#include <openAHRS/kalman/kalman7.h>
-#include <openAHRS/util/net.h>
-
 #include <iostream>
 
+#include <openAHRS/util/util.h>
+#include <openAHRS/kalman/UKFst7.h>
+#include <openAHRS/util/net.h>
+#include <openAHRS/util/matrixserializer.h>
+
 using namespace std;
-using namespace input;
 using namespace openAHRS;
 
-/**
- * A/D channels
- */
-#define	CH_GYROZ	3
-#define	CH_GYROY	2
-#define	CH_GYROX	1
+#include "avr32hw.h"
+#include "magcalib.h"
 
-#define	CH_MAGX		5
-#define	CH_MAGY		4
-#define	CH_MAGZ		6
+static MagCalib	calibM;
+static Sensing	s;
+static	util::UDPConnection	udp( "192.168.0.246", 4444 );
 
-
-#if	DEBUG_OCTAVE
-	/**
-	 * Input data
-	 */
-	static struct
-	{
-		Matrix<FT,3,1>	accels[N];
-		Matrix<FT,3,1>	gyros[N];
-		Matrix<FT,3,1>	angles[N];
-		Matrix<FT,3,1>	magn[N];
-	} in;
-
-	/**
-	 * Output data
-	 */
-	static struct
-	{
-		Matrix<FT,7,1>	state[N];
-		Matrix<FT,3,1>	angles[N];
-		Matrix<FT,1,1>	dt[N];
-	} out;
+#define	USE_UKF	0
+#if	USE_UKF
+	#include <openAHRS/kalman/UKFst7.h>
+#else
+	#include <openAHRS/kalman/kalman7.h>
 #endif
 
 
-/**
- * Sampling time is not fixed,
- * depends on many things
- */
-static float	dt;
+#if	USE_UKF
+	static	openAHRS::UKFst7	K7;
+#else
+	static	openAHRS::kalman7	K7;
+#endif
 
-/**
- * Time structures, used later
- */
-static struct timespec t1,t2;
+static struct timespec	t1,t2;
 
+#include <Eigen/Geometry>
 
-/** temp vectors, measured data **/
-static Matrix<FT,3,1>		meas_accels,meas_gyros, meas_angles;
-static Matrix<FT,3,1>		meas_magn;
-
-/* filtered data */
-static Matrix<FT,3,1>		angles;
-
-
+#define	MAGCALIB_FILENAME	"mag.cal"
 
 /**
  * Gets elapsed time between t2 and t1,
@@ -126,353 +70,279 @@ static float	getElapsedTime( struct timespec *t1, struct timespec *t2 )
 	return 1.0*(1.0*t2->tv_nsec - t1->tv_nsec*1.0)*1e-9 + 1.0*t2->tv_sec - 1.0*t1->tv_sec;
 }
 
-/**
- * Structure to hold calibration data
- */
-struct sstat
+//takes quaternion, returns quaternion
+static	Matrix<FT,4,1>	correct45Deg( Matrix<FT,4,1>	quat )
 {
-	float min, max;
-
-	sstat( float mn, float mx ) {
-		min = mn;
-		max = mx;
-	}
-};
-
-/**
- * Init calibration struct
- */
-void	init_stat( sstat *s )
-{
-	s->min = 9999999;
-	s->max	= -9999999;
-}
-
-/**
- * Call to update limits on calibration struct
- * when calibrating
- */
-void	do_stat( sstat *s, float val )
-{
-	if ( val < s->min )
-		s->min = val;
-	if ( val > s->max )
-		s->max = val;
-
-	printf("min: %.15f\n", s->min );
-	printf("max: %.15f\n", s->max );
-}
-
-/**
- * Calculate value based on calibration data
- */
-float	calc_val( const sstat *s, float val )
-{
-	float center = s->min + (s->max - s->min)/2;
-	return	(val - center)/(s->max - center);
-}
-
-
-/** returns heading 
- * Angles need to have right pitch and roll **/
-static float	getMagn( AD12 &ad, const Matrix<FT,3,1> &angles )
-{
-	float	xsample,ysample,zsample;
-
-	/* Magnetometer and A/D calibration data **/
-	static const sstat mx(
-		2.490234375,		//min
-		2.835034179680000	//max
-	);
-
-	static const sstat my(
-		5.0-2.581787109375,	//min
-		5.0-2.230224609375	//max
-	);
-
-	static const sstat mz(
-		5.0 - 2.340087890625,	// min
-		5.0 - 1.968994140625	// max
-	);
-
-	/**
-	 * Magnetometers need resetting to avoid polarization
-	 *
-	 * Only once every some time
-	 *
-	 * TODO: this might not be the best place for this
-	 */
-	static int num = 0;
-	num++;
-	if ( num > 50 )
-		num = 0;
-
-	if ( num == 1 )
-	{
-		CFlip::flipClear();
-		usleep(1000);
-
-		CFlip::flipSet();
-		usleep(1000);
+	static Eigen::Quaternion<FT>	qRot;	//quaternion used to rotate the measurements 45 degrees
+	static bool	firstTime = true;
+	if	(firstTime) {
+		qRot.coeffs()	= util::eulerToQuat(  Matrix<FT,3,1>(0,0,-45*M_PI/180) );
+		firstTime = false;
 	}
 
 
-	if ( !ad.getSample( CH_MAGX, &xsample ) )
-		cout	<< "Error get mX" << endl;
-	if ( !ad.getSample( CH_MAGY, &ysample ) )
-		cout	<< "Error get mY" << endl;
-	if ( !ad.getSample( CH_MAGZ, &zsample ) )
-		cout	<< "Error get mZ" << endl;
+	return (qRot * Eigen::Quaternion<FT>( quat ) ).coeffs();
+}
 
-	ysample	= 5.0 - ysample;
-	zsample = 5.0 - zsample;
+static double	processMagn( const Matrix<FT,3,1>	&m, const Matrix<FT,3,1> &angles )
+{
+	Matrix<FT,3,1>	ang1;
+	ang1 = angles;
+	ang1(1) -= 32*M_PI/180;	//compensate for inclination (Argentina!)
+							//TODO: get from GPS
+	return	util::calcHeading( m, ang1 );
+}
+
+bool	testMagAccel()
+{
+	Matrix<FT,3,1>	a,mr,m,angles;
 	
-	meas_magn[0]	= calc_val( &mx, xsample );
-	meas_magn[1]	= calc_val( &my, ysample );
-	meas_magn[2]	= calc_val( &mz, zsample );
-
-	return util::calcHeading( meas_magn, angles );
-}
-
-
-/**
- * Gets accel and gyro data
- */
-static void	getData( AD12 &ad, LIS3LV02 &accel, Matrix<FT,3,1> &accels, Matrix<FT,3,1> &gyros )
-{
-	float	faccels[3];
-	float	xsample,ysample,zsample;
-
-	if ( !accel.getAccel( faccels ) )
-		cout << "Error get accels!" << endl;
-
-	if ( !ad.getSample( CH_GYROX, &xsample ) )
-		cout << "Error get X" << endl;
-	if ( !ad.getSample( CH_GYROY, &ysample ) )
-		cout << "Error get Y" << endl;
-	if ( !ad.getSample( CH_GYROZ, &zsample ) )
-		cout << "Error get Z" << endl;
-
-	accels	<< faccels[2], -faccels[1], faccels[0];
-
-	gyros	<<	-xsample*3.14/180/5e-3,	// ADXRS300	, this leads to negative bias, 
-										// but won't matter, kalman will track it
-										
-										// ADXRS300
-				ysample*3.14/180/5e-3,	
-				-zsample*(3.41/180/15e-3);	// ADXRS150
-
-/*	cout << "ACCELS: " << endl;
-	cout << "\tX: " << faccels[2] << endl;
-	cout << "\tY: " << faccels[1] << endl;
-	cout << "\tZ: " << faccels[0] << endl;
-
-	cout << "GYROS: " << endl;
-	cout << "\tRoll : " << (5.0 - xsample) << endl;
-	cout << "\tPitch: " << ysample << endl;
-	cout << "\tYaw  : " << (5.0 - zsample) << endl <<endl;*/
-
-
-}
-
-#if 1
-void	endlessAccelRead( LIS3LV02 &accel )
-{
-	float data[3];
-	for (;;)
-	{
-		if ( !accel.getAccel( data ) )
-			exit(-1);
-
-		printf("X:%f Y:%f Z:%f\n" , data[0], data[1], data[2] );
-		usleep(5000);
-	}
-}
-#endif
-
-int main( int argc, char *argv[] )
-{
-	Matrix<FT,3,1>	startBias;
-	Matrix<FT,7,1>	X;	//this will save a copy of our state vector
-
-	if ( argc != 2 ) {
-		cout << "Wrong arguments" << endl << endl;
-		cout << "Use: " << argv[0] << " " << "<host>" << endl;
-		cout << "Packets will be sent through UDP, port 4444" << endl;
-		return -1;
-	}
-
-	/* To output data through the network interface
-	 * TODO: there is no host error checking */
-	util::UDPConnection	conn( argv[1] ,4444);
-
-
-	/** Create kalman object **/
-	openAHRS::kalman7	K7;
-
-	/**
-	 * Try to initialize spi devices */
-	AD12		dev_ad("/dev/spidev0.1");
-	LIS3LV02	dev_accel("/dev/spidev0.2");
-	if ( !dev_ad.init() ) {
-		cout << "Error AD init" << endl;
-		return -1;
-	}
-
-	if ( !dev_accel.init() ) {
-		cout << "Error Accel init" << endl;
-		return -1;
-	}
-
-//	endlessAccelRead( dev_accel );
-
-	if ( !CFlip::init() ) {
-		cout	<< "Error init cflip" << endl;
-		return -1;
-	}
-
-/**
- * Uncomment to get calibration data for magnetometers
- */
-#if 0
-	sstat mx,my,mz;
-
-
-		init_stat( &mx );
-		init_stat( &my );
-		init_stat( &mz );
 	while(1)
 	{
-		CFlip::flipClear();
-		usleep(1000);
+		if ( !s.getMagns(mr) )	{ printf("Error get magn\n") ; return false; }
+		if ( !s.getAccels(a) )	{ printf("Error get accel\n"); return false; }
 
-		float xsample, ysample, zsample;
+		calibM.processInput(mr, m);
 
-		if ( !ad.getSample( CH_MAGX, &xsample ) )
-			cout	<< "Error get mX" << endl;
-		if ( !ad.getSample( CH_MAGY, &ysample ) )
-			cout	<< "Error get mY" << endl;
-		if ( !ad.getSample( CH_MAGZ, &zsample ) )
-			cout	<< "Error get mZ" << endl;
+		util::accelToPR( a, angles );
+		
+		angles(2)	= processMagn( m, angles );
 
-		CFlip::flipSet();
+		angles	= util::quatToEuler( correct45Deg( util::eulerToQuat( angles ) ) );
 
+		cout << "Mag: " << m << endl;
+		cout << "Heading: " << angles(2)*180/3.14 << endl;
+		cout << "Pitch & Roll: " << angles(1)*180/3.14 << " " << angles(0)*180/3.14 << endl;
 
-
-		cout << "X\n";
-		do_stat( &mx, xsample );
-
-		cout << "Y\n";
-		do_stat( &my, ysample );
-		cout << "Z\n";
-		do_stat( &mz, zsample );
-
-		cout << "X: " << xsample << endl;
-		cout << "Y: " << ysample << endl;
-		cout << "Z: " << zsample << endl;
-
-		cout << endl << endl;
-
-		usleep(10000);
+		usleep(100e3);
+		
+		if ( util::kbhit() ) {
+			getchar();
+			break;
+		}
 	}
-#endif
 
+	return true;
+}
 
+bool	doFiltering()
+{
+	Matrix<FT,3,1>	a,g,mr,m, angles;
+	Matrix<FT,3,1>	startBias;
+	Matrix<FT,7,1>	X;
 
-	/** Prepare initial estimate **/
+	startBias << 0,0,0;
 
-	getData( dev_ad, dev_accel, meas_accels, meas_gyros );
-	util::accelToPR( meas_accels, meas_angles );
+	int i = 0;
 
-	meas_angles(2)	= getMagn( dev_ad, meas_angles );
+	//init
+		if ( !s.getGyros(g) )	{ printf("Error get gyros\n"); return -3; }
+		if ( !s.getAccels(a) )	{ printf("Error get accel\n"); return -2; }
+		if ( !s.getMagns(mr) )	{ printf("Error get magn\n"); return -4; }
 
-	/* lets provide an initial estimate */
-	startBias	= meas_gyros;
-	K7.KalmanInit( meas_angles, startBias, 0.01,
-					1e-4, 1e-7);
+		calibM.processInput(mr, m);
 
+		util::accelToPR( a, angles );
+		angles(2)	= processMagn( m, angles );
 
-
-	clock_gettime( CLOCK_REALTIME, &t2 );
-	#if	DEBUG_OCTAVE
-		for (int i=0; i < N; i++ )
-	#else
-		for(int i=0;;i++)
+	#ifdef	KAL_DONT_USE_MAG
+		g(2) = 0;
+		angles(2) = 0;
 	#endif
-	{
-		
-		getData( dev_ad, dev_accel, meas_accels, meas_gyros );
-		util::accelToPR( meas_accels, meas_angles );
-		
-		/** calculate yaw according to current magnetometer data and
-		 *  previous angles */
-		meas_angles(2)	= getMagn( dev_ad, angles );
-	
+
+		startBias = g;
+
+	#if	USE_UKF
+		K7.KalmanInit( angles, startBias, 1e-1, 1e-8, 1e-12 );
+	#else
+		K7.KalmanInit( angles, startBias, 1e-2, 1e-4, 1e-7 );
+	#endif
+
+		clock_gettime( CLOCK_REALTIME, &t2 );
+
+
+	while(1) {
+
+		if ( !s.getGyros(g) )	{ printf("Error get gyros\n"); return -3; }
+		if ( !s.getAccels(a) )	{ printf("Error get accel\n"); return -2; }
+		if ( !s.getMagns(mr) )	{ printf("Error get magn\n"); return -4; }
+
+		calibM.processInput(mr, m);
+
+		util::accelToPR( a, angles );
+
+		double rawHeading = angles(2)	= processMagn( m, angles );
+
+		#ifdef	KAL_DONT_USE_MAG
+			g(2) = 0;
+			angles(2) = 0;
+		#endif
+
 		clock_gettime( CLOCK_REALTIME, &t1 );
-		dt	= getElapsedTime( &t2, &t1 );
+		double	dt = getElapsedTime( &t2, &t1 );
 		t2 = t1;
 
-		#if DEBUG_OCTAVE
-			out.dt[i]	<< dt;
-		#endif
+		K7.KalmanUpdate( i, angles, dt );
+		K7.getStateVector(X);
+		
+		angles	= util::quatToEuler( correct45Deg( X.start<4>() ) );
 
-
-		K7.KalmanUpdate( i, meas_angles, dt );
-		X = K7.X;
-
-		angles	= util::quatToEuler( X.start<4>() );
-
-		#if	DEBUG_OCTAVE
-			in.accels[i]	= meas_accels;
-			in.angles[i]	= meas_angles;
-			in.gyros[i]		= meas_gyros;
-			in.magn[i]		= meas_magn;
-
-			out.state[i]	= X;
-			out.angles[i]	= angles;
-		#endif
+		//cout << "angp: " << util::quatToEuler( X.start<4>() )*180/M_PI << endl;
+		//cout << "angn: " << angles*180/M_PI << endl;
 
 		/**
 		 * Send data through network.
 		 * This format avoids little/big endian problems
 		 */
-		static char	netStr[512];
-		sprintf(netStr,"Roll:%lf Pitch:%lf Yaw:%lf Bias1:%lf Bias2:%lf Bias3:%lf",
+		static char	netStr[1024];
+		sprintf(netStr,"Roll:%lf Pitch:%lf Yaw:%lf Bias1:%lf Bias2:%lf Bias3:%lf Ax:%lf Ay:%lf Az:%lf RH:%lf",
 			angles(0), angles(1), angles(2),
-			X(4), X(5), X(6) );
+			X(4), X(5), X(6),
+			a(0), a(1), a(2),
+			rawHeading );
 
-		conn.Send( netStr, strlen(netStr) );
-
-		K7.KalmanPredict( i, meas_gyros, true, dt );
-
+		udp.Send( netStr, strlen(netStr) );
+#if 1
 		//show debug info once a while
-		if ( i % 10 == 0 ) {
+		if ( i % 20 == 0 ) {
 			cout << "dt: " << dt << endl;
 			cout << "Roll : " << 180/3.14*angles(0) << endl;
 			cout << "Pitch: " << 180/3.14*angles(1) << endl;
 			cout << "Yaw:   " << 180/3.14*angles(2) << endl << endl;
+
+			cout << "Raw yaw: " << 180/3.14*rawHeading << endl;
+			cout << "Gyros: " << g << endl;
 		}
+#endif
+		/////////////////
+		K7.KalmanPredict( i, g, dt );
 
-
-		usleep(10000);
+		if ( util::kbhit() )	{
+			getchar();
+			break;
+		}
+		usleep(1e3);
+		i++;
 	}
 
+	return true;
+}
 
-	#if DEBUG_OCTAVE
-		/** Write original and filter data to Octave file **/
-		ofstream	file("octave/indata");
-		octave::writeVectors( file, "in_accels", in.accels, N );
-		octave::writeVectors( file, "in_gyros", in.gyros, N );
-		octave::writeVectors( file, "in_angles", in.angles, N );
-		octave::writeVectors( file, "in_magn", in.magn, N );
+bool	doMagCalibration()
+{
+	Matrix<FT,3,1>	mRaw,mCal;
+	int i = 0;
 
-		octave::writeVectors( file, "out_state", out.state, N );
-		octave::writeVectors( file, "out_angles", out.angles, N  );
-		octave::writeVectors( file, "dt", out.dt, N  );
+	while(1)
+	{
+		i++;
+		if ( !s.getMagns(mRaw) ) {
+			printf("Err get mag\n");
+			return false;
+		}
+		calibM.estimateParams(mRaw);
+		calibM.processInput(mRaw, mCal);
 
-		file.close();
-	#endif
+		
+		if ( i % 10 == 0 ) {
+			s.flipMagns();
+			Matrix<FT,9,1>	p; calibM.getParams(p);
+			cout << "Params: \n" << p << "\n";
+			cout << "Magn angle: " << 180/3.14*atan2(mCal(1),mCal(0)) << "\n\n\n";
+		}
 
+		if ( util::kbhit() ) {
+			getchar();
+			break;
+		}
+
+		usleep(5e3);
+	}
+	
+	//save calibration
+	if ( !calibM.saveParameters( MAGCALIB_FILENAME ) ) {
+		printf("Error saving calibration parameters\n");
+		return false;
+	} else
+		printf("Calibration parameters saved\n");
+
+	return true;
+}
+
+int main(int argc, char **argv)
+{
+
+	if ( !s.init() ) {
+		printf("Error init sensing\n"); return -1;
+	}
+	getchar();
+	while(1)
+	{
+		printf("\n\n---=========== AVR32 AHRS =============----\n\n");
+		printf("1:\tCalibrate magnetometers\n");
+		printf("2:\tAlign accelerometer and magnetometers\n");
+		printf("3:\tShow raw data\n");
+		printf("4:\tStart filtering\n");
+		printf("5:\tTest mag-accel relationship\n");
+		printf("6:\tLoad mag calib data\n");
+		printf("9:\tQuit\n");
+		printf("\nYour choice: ");
+
+		int c;
+		c = getchar();
+		printf("Char %d\n",c);
+		getchar();	//enter
+		switch(c) {
+			case	'1':
+				doMagCalibration();
+				break;
+			case	2:
+				break;
+			case	3:
+				break;
+			case	'5':
+				testMagAccel();
+				break;
+			case	'4':
+				doFiltering();
+				break;
+			case	'6':
+				if ( !calibM.loadParameters( MAGCALIB_FILENAME ) ) {
+					printf("Error loading calibration data\n"); break;
+				} else
+					printf("Calibration data loaded\n");
+				break;
+			case	'9':
+				printf("--- Exiting....\n");
+				return 0;
+				break;
+		}
+	}
+
+#if 0
+	while(1)
+	{
+		if ( !s.getAccels(a) )	return -2;
+		if ( !s.getGyros(g) )	return -3;
+		if ( !s.getMagns(m) )	return -4;
+
+		mcalib.estimateParams(m);
+		mcalib.processInput(m, mc);
+
+		if ( i % 10 == 0 ) {
+			cout << "Accel: \n" << a << "\n\n";
+			cout << "Gyro: \n" << g << "\n\n";
+			cout << "Magn: \n" << m << "\n\n";
+
+			Matrix<FT,9,1>	p; mcalib.getParams(p);
+			cout << "Params: \n" << p << "\n";
+			cout << "Magn angle: " << 180/3.14*atan2(mc(1),mc(0)) << "\n\n\n";
+		}
+		usleep(5e3);
+
+		i++;
+	}
+#endif
 	return 0;
 }
 

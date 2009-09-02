@@ -70,13 +70,14 @@ public:
 	 *
 	 */
 	void	KalmanPredict( int iter, const Matrix<FT,3,1> &gyros, 
-							bool track_bias, FT dt );
+							FT dt );
 
-
+public:
+	inline void	getStateVector( Matrix<FT,7,1>	&x ) { x = X; }
 	/**
 	 * Public access to state vector
 	 */
-public:
+private:
 	Matrix<FT,7,1>	X;	/* state vector */
 			/**
 			 * X(0..3)	=> quaternion
@@ -115,7 +116,7 @@ private:
 	*/
 	void	calcA( Matrix<FT,7,7> &A, 
 					const Matrix<FT,3,1> &gyros,
-					const Matrix<FT,4,1> &q, bool track_bias, FT dt );
+					const Matrix<FT,4,1> &q, FT dt );
 
 	/**
 	* Predict next state based on current state and gyro measurements
@@ -126,6 +127,10 @@ private:
 	*/
 	void	predictState( Matrix<FT,7,1> &X, 
 					const Matrix<FT,3,1> &gyros, FT dt );
+
+	public:
+		EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
 };
 
 };

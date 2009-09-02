@@ -3,6 +3,7 @@ openAHRS - open source AHRS
 
 Code is licensed under the GPL v2 license, see the file COPYING for information
 Copyright (c) Carlos Becker
+http://code.google.com/p/openahrs
 http://github.com/cbecker/openahrs
 -------------------------
 
@@ -15,6 +16,8 @@ You need to modify the EIGENPATH variable inside Makefile.paths before trying to
 compile anything.
 
 Use the GCC_PREFIX macro in Makefile to specify which compiler to use.
+
+To use the util/plotter utility you need the qwt library (http://qwt.sf.net)
 
 2. Code organization
 --------------------
@@ -38,4 +41,7 @@ where 'xxxx' depends on the sample to be built (type 'make help' for a descripti
 	- AHRSs:
 		AHRS implementations. Currently there is only an AVR32 port.
 		Make sure the GCC_PREFIX macro in the main Makefile is correctly set.
+
+	- util/plotter
+		 Utility to plot values received through UDP from AHRS. Uses the qwt library. Also draws an opengl scene with current position (might be CPU-intensive on some cases).
 

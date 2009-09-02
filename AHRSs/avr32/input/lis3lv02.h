@@ -54,9 +54,20 @@ namespace input
 			/**
 			 * Initialize SPI interface
 			 *
+			 * @param spiclk	spi clock to use with spidev
 			 * @return	false on error
 			 */
-			bool	init(void);
+			bool	init(unsigned int spiclk);
+
+
+			/**
+			 * Get raw data, only for test purposes now
+			 *
+			 * @param iaccel	where to store the values
+			 *
+			 * @return	false if there was an error
+			 */
+			bool getRaw( int16_t iaccel[3] );
 
 			/**
 			 * Get accelerometer data for all axes

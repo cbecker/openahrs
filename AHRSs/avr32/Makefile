@@ -1,6 +1,6 @@
 include ../../Makefile.build
 
-SOURCES	+= input/ad12.cpp input/lis3lv02.cpp input/mmap.cpp input/cflip.cpp main.cpp
+SOURCES	+= input/ads1256.cpp input/ad12.cpp input/lis3lv02.cpp input/mmap.cpp input/cflip.cpp avr32hw.cpp main.cpp
 TARGET 	= ahrs
 #RELPATH	= ../../
 

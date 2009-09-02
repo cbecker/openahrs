@@ -35,8 +35,10 @@ USING_PART_OF_NAMESPACE_EIGEN
 namespace openAHRS { namespace util
 {
 
+	int	kbhit();
+
 	/** Calculates angle error **/
-	static FT		calcAngleError( FT plus, FT minus )
+	inline FT		calcAngleError( FT plus, FT minus )
 	{
 		if ( (minus > C_PI/2) && (plus < -C_PI/2) ) {
 			return	2*C_PI + plus - minus;
@@ -47,7 +49,10 @@ namespace openAHRS { namespace util
 			return plus - minus;
 	}
 
-
+	/** Calculates DCM fro roll, pitch and yaw 
+	 ** Would convert earth-fixed coords to body coords
+	 **/
+	Matrix<FT,3,3>	calcDCM( FT roll, FT pitch, FT yaw );
 
 
 	/**
@@ -93,6 +98,9 @@ namespace openAHRS { namespace util
 	 * @return		Quaternion [ e0 ex ey ez ]'
 	 */
 	Matrix<FT,4,1>		eulerToQuat( const Matrix<FT,3,1> &e );
+	
+	/* Same as quatToEuler but normalization is done before */
+	Matrix<FT,3,1>		quatToEulerNorm( Matrix<FT,4,1> q );
 
 	/**
 	 * Accelerometer data to pitch and roll.

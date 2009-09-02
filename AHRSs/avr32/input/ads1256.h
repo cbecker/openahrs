@@ -1,5 +1,5 @@
 /*
- *  MCP3208 12-bit A/D 'driver' through spidev
+ *  ADS1256 A/D 'driver' through spidev
  *
  *  Copyright (c) by Carlos Becker	http://github.com/cbecker 
  *
@@ -21,8 +21,8 @@
  */
 
 
-#ifndef _ad12_h_
-#define	_ad12_h_
+#ifndef _ads1256_h_
+#define	_ads1256_h_
 
 #include <stdint.h>
 
@@ -32,28 +32,58 @@ namespace input {
 	 * Class for controlling a MCP3208 A/D converter through
 	 * spidev.
 	 *
+	 * Asumes 5V ARef
 	 */
-	class	AD12
+	class	ADS1256
 	{
 		protected:
 			const char	*spidevname;
 			int			fd;	/* file descriptor */
-			float			vRef;
+			float		vRef;
 
+			/**
+			 * Reads a register from the A/D.
+			 * true if alright
+			 */
+			bool	readReg( unsigned char reg, unsigned char *val );
+
+			bool setMux( int ch1, int ch2 ) ;
+			/**
+			 * Reads conversion data
+			 */
+			bool	readData( int *val );
+
+			/**
+			 * Writes register data
+			 */
+			bool	writeReg( unsigned char reg, unsigned char val, bool verify = false );
+			
+			/**
+			 * Writes single-byte command
+			 */
+			bool	writeCmd( unsigned char cmd );
 		public:
 			/**
 			 * 
 			 * @param device	spidev to use for communication
-			 * @param VRef		reference voltage
+			 * @param vref		reference voltage
 			 */
-			AD12( const char *device, float VRef );
+			ADS1256( const char *device, float vref );
+
+			bool test();
+
+			bool	convert( int ch1, int ch2, float *val ) ;
 
 			/**
 			 * Try to initialize spidev and relevant functionality
 			 *
+			 * @param spiclk	spi clock
 			 * @return	true if OK, false if there was an error
 			 */
-			bool init( uint32_t spiSpeed );
+			bool init(unsigned int spiclk);
+
+			//sets IO as output and sets pin value
+			bool	setIO( unsigned int pin, int high );
 
 			/**
 			 * Gets sample

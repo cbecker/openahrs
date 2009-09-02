@@ -30,7 +30,8 @@
 #include <unistd.h>
 #include <asm/types.h>
 #include <linux/spi/spidev.h>
-
+#include <errno.h>
+//#include <strerr.h>
 #include <iostream>
 using namespace std;
 
@@ -40,6 +41,7 @@ using namespace std;
 #define	OUTX_H	0x29
 #define	CTRL_REG1	0x20
 #define	CTRL_REG2	0x21
+#define	CTRL_REG3	0x22
 #define	OUTZ_L	0x2C
 #define	OUTZ_H	0x2D
 
@@ -76,6 +78,7 @@ namespace input
 		if ( status < 0 )
 		{
 			cout << "Error in ioctl" << endl;
+			printf("--> %s\n", strerror(errno) );
 			return 0;
 		}
 
@@ -104,7 +107,7 @@ namespace input
 
 		if ( status < 0 )
 		{
-			cout << "Error in ioctl\n" << endl;
+			cout << "Error in ioctl:" << strerror(errno) << "\n" << endl;
 			return 0;
 		}
 
@@ -136,6 +139,7 @@ namespace input
 		if ( status < 0 )
 		{
 			cout << "Error in ioctl" << endl;
+			printf("---> %s\n", strerror(errno) );
 			return 0;
 		}
 
@@ -144,13 +148,13 @@ namespace input
 
 
 
-	bool LIS3LV02::init(void)
+	bool LIS3LV02::init(unsigned int spiclk)
 	{
 		int ret;
 
 		uint8_t mode = 0;
 		uint8_t bits = 8;
-		uint32_t speed = 1000000;
+		uint32_t speed = spiclk;
 		//uint16_t delay = 0;
 
 		fd = open(spidevname, O_RDWR);
@@ -207,31 +211,46 @@ namespace input
 		/***
 		 * Now try to find the device
 		 */
-		if ( aread8( 0x0F ) != 0x3A )
+		unsigned char	sig = aread8(0x0F);
+		if ( sig != 0x3A )
 		{
-			cout << "Couldn't find LIS3LV02!" << endl;
+			cout << "Couldn't find LIS3LV02! " << (int)sig <<  endl;
 			return false;
 		}
 
 		//start
-		awrite8( CTRL_REG1, (1<<7) | (1<<1) | (1<<2) | (1<<0) );	//all axes on
+		awrite8( CTRL_REG1, (1<<7) | (0<<3) | (1<<1) | (1<<2) | (1<<0) );	//all axes on
 
 		//16 bit mode
 		awrite8( CTRL_REG2, 1 	//16 bit mode
 								| (1<<5)  //big endian
 								| (1<<6)  //block update on
 								| (0<<7)  //2g scale
-											);
+								| (0<<4)  //boot
+									);
 
-
+		awrite8( CTRL_REG3, 0  );
 
 		return true;	//ok!
+	}
+
+	bool LIS3LV02::getRaw( int16_t iaccel[3] )
+	{
+		uint8_t	*p = (uint8_t *)iaccel;
+		for (int i=0; i < 3*2; i++)
+			*(p++) = aread8( OUTX_L + i );
+
+		return true;
+
+/*		areadX( OUTZ_L, (uint8_t*)iaccel, sizeof(iaccel) );
+
+		return true;*/
 	}
 	
 	bool LIS3LV02::getAccel( float accel[3] )
 	{
 		int16_t	iaccel[3];
-		areadX( OUTX_L, (uint8_t*)iaccel, sizeof(iaccel) );
+		if ( !getRaw( iaccel ) )	return false;
 
 		/* convert to 'g' */
 		for (int i=0; i < 3; i++ ) {

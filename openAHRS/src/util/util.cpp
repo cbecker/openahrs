@@ -23,6 +23,12 @@
 
 
 #include <openAHRS/util/util.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <termios.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 #include <math.h>
 #include <Eigen/Core>
@@ -32,6 +38,52 @@ USING_PART_OF_NAMESPACE_EIGEN
 
 namespace openAHRS { namespace util 
 {
+	/** Calculates DCM fro roll, pitch and yaw **/
+	Matrix<FT,3,3>	calcDCM( FT roll, FT pitch, FT yaw )
+	{
+		Matrix<FT,3,3>	dcm;
+
+		FT	cr,cp,cy;
+		FT	sr,sp,sy;
+
+		cr	= cos(roll); cp = cos(pitch); cy = cos(yaw);
+		sr	= sin(roll); sp = sin(pitch); sy = sin(yaw);
+
+		dcm(0,0) = cp*cy;				dcm(0,1) = cp*sy;				dcm(0,2) = -sp;
+		dcm(1,0) = sr*sp*cy - cr*sy;	dcm(1,1) = sr*sp*cy + cp*cy;	dcm(1,2) = sr*cp;
+		dcm(2,0) = cr*sp*cy - sr*sy;	dcm(2,1) = cr*sp*sy - sr*cy;	dcm(2,2) = cr*cp;
+
+		return	dcm;
+	}
+
+
+	int kbhit(void)
+	{
+	  struct termios oldt, newt;
+	  int ch;
+	  int oldf;
+
+	  tcgetattr(STDIN_FILENO, &oldt);
+	  newt = oldt;
+	  newt.c_lflag &= ~(ICANON | ECHO);
+	  tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+	  oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
+	  fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
+
+	  ch = getchar();
+
+	  tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+	  fcntl(STDIN_FILENO, F_SETFL, oldf);
+
+	  if(ch != EOF)
+	  {
+		ungetc(ch, stdin);
+		return 1;
+	  }
+
+	  return 0;
+	}
+
 	Matrix<FT,4,4>	calcQOmega( double p, double q, double r )
 	{
 		Matrix<FT,4,4>	ret;
@@ -118,6 +170,30 @@ namespace openAHRS { namespace util
 		#undef	ex
 		#undef	ey
 		#undef	ez
+
+		return ret;
+	}
+	
+	Matrix<FT,3,1>		quatToEulerNorm( Matrix<FT,4,1> q )
+	{
+		q.normalize();
+		Matrix<FT,3,1>	ret;
+		
+		/** ROLL **/
+		ret[0]	=	atan2( 2*(q[0]*q[1] + q[2]*q[3]),
+							1 - 2*(q[1]*q[1] + q[2]*q[2]) );
+		/** PITCH **/
+		FT	temp	= 2*(q[1]*q[3] - q[0]*q[2]);
+		if ( temp > 1.0 )
+			temp  = 1.0;
+		if ( temp < -1.0 )
+			temp = -1.0;
+
+		ret[1]	=	-asin( temp );
+
+		/** YAW **/
+		ret[2]	=	atan2( 2*(q[0]*q[3] + q[1]*q[2]),
+							1 - 2*(q[2]*q[2] + q[3]*q[3]) );
 
 		return ret;
 	}

@@ -92,15 +92,14 @@ namespace openAHRS {
 	* @param A			Destination matrix
 	* @param gyros		Gyro data, including bias
 	* @param q			Current state in quaternion format
-	* @param track_bias	if bias should be tracked or held constant
 	* @param dt			Delta between updates
 	*/
 	void	kalman7::calcA( Matrix<FT,7,7> &A, 
 					const Matrix<FT,3,1> &gyros,
-					const Matrix<FT,4,1> &q, bool track_bias, FT dt )
+					const Matrix<FT,4,1> &q, FT dt )
 	{
 		A.setIdentity();
-		if ( track_bias )
+		if ( true )	//track bias
 		{
 			A.block<4,4>(0,0)	= Matrix<FT,4,4>::Identity() +
 					dt * util::calcQOmega( gyros[0] - X(4), gyros[1] - X(5), gyros[2] - X(6) )/2;
@@ -186,10 +185,10 @@ namespace openAHRS {
 	}
 
 
-	void	kalman7::KalmanPredict( int iter, const Matrix<FT,3,1> &gyros, bool track_bias, FT dt )
+	void	kalman7::KalmanPredict( int iter, const Matrix<FT,3,1> &gyros, FT dt )
 	{
 		/** Predict **/
-		calcA( A, gyros, q, track_bias, dt );
+		calcA( A, gyros, q, dt );
 
 		/** only update quaternion-relevant data in our state vector **/
 		predictState( X, gyros, dt );
